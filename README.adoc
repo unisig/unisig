@@ -1,0 +1,505 @@
+# Unisig - Uniform signature
+:toc: macro
+:toc-title:
+
+Specification (updated 2020-03-31)
+
+Lassi Kortela +
+John Cowan
+
+toc::[]
+
+## Overview
+
+Unisig is a uniform signature scheme for binary file formats and
+network protocols. It clearly differentiates binary data from text and
+detects typical file transfer errors. It offers a human-readable and
+future-proof naming scheme based on URIs, and an alternative covert
+naming scheme based on UUIDs. It lets file format identification tools
+show the name of your format with no extra work on your part.
+
+## Motivation
+
+Each binary format normally has its own _signature_, also known as
+_magic number_. The signature is a constant byte string meant to
+identify the format and distinguish it from other formats. It is
+normally situated right at the start of data so the format can be
+identified as early as possible. The following table explains the
+signatures of some popular formats.
+
+[options=header]
+|====
+
+|Signature|Format|Meaning
+
+|`"MZ"`
+|PE executable (Windows)
+|Designer's initials
+
+|*0x19* *0x54* *0x01* *0x19*
+|BSD Fast File System superblock
+|Designer's birthday
+
+|*0xCA* *0xFE* *0xBA* *0xBE*
+|Java virtual machine class file
+|Hexspeak
+
+|*0x1F* *0x8B*
+|GZip compressed data
+|ASCII control character, Latin-1 control character
+
+|*0x7F* `"ELF"`
+|ELF executable (Unix)
+|ASCII control character, format name
+
+|`"SQLite format 3"` *0x00*
+|SQLite database
+|Format name, ASCII control character
+
+|*0x89* `"PNG"` `"\r\n"` *Ctrl+Z* `"\n"`
+|PNG image
+|Latin-1 control character, format name, error detection bytes
+
+|====
+
+Back in the eighties, disk space was scarce and designers preferred
+compact formats. There were also fewer file formats and fewer file
+transfers across different operating systems so magic number
+collisions were not a problem. Hence formats often had only a 2-byte
+magic number. As 32-bit computers gained market share, 4-byte magic
+numbers became popular.
+
+The success of the personal computer and the internet has exacerbated
+problems with file formats. Software distribution is no longer limited
+to tightly-knit communities gathered around particular organizations
+or computer platforms. Instead, anyone can write software and publish
+it instantly to the entire world. Computer platforms and operating
+systems are no longer walled gardens: files are routinely exchanged
+between different systems. File format designers do not necessarily
+communicate with other designers, with platform vendors, or with user
+communities. Additionally, a format can achieve sudden popularity and
+spread all over the world in a matter of months or even weeks.
+
+To answer these problems, we need:
+
+* *More collision resistance.* There are now many more formats, so
+  signatures must be longer.
+
+* *A way for mutually unknown parties to avoid collisions.* Must work
+  without a central registry.
+
+* *Discoverability.* Format specifications should be discoverable. Web
+  links are best.
+
+* *Extensibility.* It is prudent to assume that any new format lasts
+  for decades. A signature scheme should be extensible to cope with
+  unforeseen requirements.
+
+* *Dating.* Signatures should state the when the format was published.
+  This is good for collision resistance, and is useful information for
+  computer archaeologists and explorers of all stripes.
+
+* *Error detection.* With a greater variety of computer systems,
+  incorrect file transfers are more likely. A well-chosen magic number
+  can double as an error detector.
+
+Unisig solves all of these problems:
+
+* The signature contains either a UUID (universally unique identifier)
+  or a URI (Uniform Resource Identifier). UUIDs have been designed
+  specifically for collision resistance and safe use by mutually
+  unknown parties. URIs are easily collision resistant if one uses a
+  DNS hostname and includes a date in the URI, and everybody knows how
+  to use DNS-based URIs.
+
+* Web URIs are possibly the most discoverable general-purpose tokens.
+
+* URI syntax itself is infinitely extensible by registering new URI
+  schemes. URI schemes are well-known in the internet community and a
+  registration procedure is already in place.
+
+* For error detection, we happily stole the thoughtful magic number of
+  the PNG image file format, modifying it so suit. In particular, we
+  had the benefit of hindsight to made it more Unicode-resistant.
+
+## Specification
+
+### Usage
+
+Unisig is not its own file format or network protocol. It is intended
+for use as a building block in other formats.
+
+A format will normally position a Unisig at the very beginning of the
+data stream. However, this is not required.
+
+It is possible to have more than one Unisig in one data stream, should
+that serve a purpose. A format containing data in other formats can
+have a Unisig in a nested format.
+
+### File name extension
+
+Unisig does not have its own file name extension. Each format using
+Unisig should choose its own extension (if any).
+
+Unisig can identify the format of extensionless binary files.
+
+### MIME type
+
+Unisig does not have its own MIME type. Each format using Unisig
+should have its own MIME type.
+
+MIME types of the form `foo/x-bar` can be used informally.
+
+For a popular format, please
+https://www.iana.org/form/media-types[apply for an official MIME type]
+with IANA (Internet Assigned Numbers Authority).
+
+### Structure of a Unisig
+
+Unisig comes in two variants:
+
+* URI-based (7 magic bytes + 1 length byte + variable-length URI)
+* UUID-based (7 magic bytes + 1 length byte + 16-byte UUID)
+
+### Magic bytes
+
+A Unisig starts with the following seven hex bytes: DC DC 0D 0A 1A 0A
+00.
+
+The bytes serve as a unique magic number to identify Unisig. However,
+they also double as protection against bad file transfers that corrupt
+data. The bytes have been chosen for the following purposes.
+
+* DC DC
+
+  ** These two bytes start an invalid Unicode surrogate pair when
+     interpreted as UTF-16 or UTF-32 (either big-endian or
+     little-endian). They also represent an invalid encoding of a
+     UTF-8 character. These signals serve as an early warning that the
+     format is not Unicode text.
+
+  ** Neither byte represents an ASCII character, further reducing the
+     likelyhood that the format is misread as text.
+
+  ** Both bytes have the most significant bit set. Some old file
+     transfer methods are not _8-bit clean_ -- they only keep the
+     low-order 7 bits of each byte. These bytes will be corrupted by
+     such a transfer, serving as an early warning that the rest of the
+     data is most likely corrupted as well.
+
+  ** The bytes distinguish Unisig to old software tools that use the
+     first two bytes of a file to identify the file format.
+
+* 0D 0A
+
+  ** These two bytes represent a newline in CR LF encoding
+     (carriage-return followed by line-feed). That encoding is used in
+     text files on Windows, and in many text-based internet protocols.
+     Some file transfer methods (most notably the FTP protocol) can
+     automatically convert newlines in text files from one encoding to
+     another. Unfortunately, file transfer programs can misidentify
+     binary files as text and wrongly apply newline conversion to
+     them, corrupting their contents. Having a CR LF newline among the
+     magic bytes detects mistaken conversion of CR LF to LF.
+
+* 1A
+
+  ** This byte represents the ASCII character Control-Z (`^Z`). It
+     stops file display under MS-DOS.
+
+  ** `^Z` is an ASCII control character that is not used to encode
+     whitespace (tab, newline, etc.). Non-whitespace control
+     characters serve no purpose in ASCII text files, so this byte
+     serves as another signal that the format is binary.
+
+  ** This byte is unrelated to newline encoding, so it also acts as a
+     separator between the CR LF and LF newlines.
+
+* 0A
+
+  ** This byte represents a newline in LF encoding (line-feed only).
+     That encoding is used in text files on Unix-like operating
+     systems. Having a LF newline among the magic bytes detects
+     mistaken conversion of LF to CR LF.
+
+* 00
+
+  ** This is a null byte (all bits zero). It detects bad transfers
+     that drop or alter null bytes.
+
+Since the magic bytes can be broken down into asymmetrical 2-byte and
+4-byte pairs, inadvertent 16-bit and 32-bit byte-order swaps are also
+detected.
+
+### Length byte
+
+The seven magic bytes are followed immediately by one length byte. It
+is interpreted as an unsigned integer (0..255).
+
+If the value is non-zero, a URI signature string with that many bytes
+follows. The string is not null-terminated.
+
+If the value is zero, a 16-byte UUID signature follows.
+
+### URI signature
+
+#### Absolute format
+
+A URI signature is an arbitrary byte string of length 1..255. Two
+signatures are equal if they are the same length and all byte values
+are equal. In other words, equality comparison is based on the raw
+bytes, not their text interpretation.
+
+#### Recommended format
+
+In practice all bytes should be ASCII graphic characters.
+
+The signature should be a valid URI (Uniform Resource Identifier).
+
+The URI should point at an existing resource at the time the format is
+published. Ideally it stays valid for decades to come.
+
+The ideal URI is the address of a web page. Then people who encounter
+the signature can open the page in their web browser to find
+information about the format.
+
+Web addresses should omit the URI scheme (`http://` or `https://`). If
+a signature has no URI scheme, readers should currently assume the
+default scheme `http`. Later versions of this specification may be
+amended to recommend a new default in case another protocol replaces
+HTTP as the most popular transport for web pages. Our intention is
+that the default scheme remain a natural choice for linking to web
+pages. Omitting the URI scheme makes web addresses shorter, easier to
+read, and permits a smooth upgrade path as the web switches to new
+protocols in the coming years and decades.
+
+#### Date and time format
+
+*We strongly, strongly recommend that the URI contain a date.* At
+least the year; possibly the month and day-of-month as well. Even a
+time-of-day can be included if need be. Internet domain names can
+change owners, so a domain name alone does not establish ownership for
+all time. A domain name and a date make a much more authoritative
+combination.
+
+Please use one of the following date and time formats:
+
+* `yyyy` (year only)
+* `yyyy-mm` (year-month)
+* `yyyy-mm-dd` (year-month-day)
+* `yyyy-mm-ddTHH:MMZ` (year-month-day `T` hour:minute `Z`)
+* `yyyy-mm-ddTHH:MM:SSZ` (year-month-day `T` hour:minute:second `Z`)
+
+These are based on the internet standard date format RFC 3339, which
+in turn is based on the international standard date format ISO 8601.
+Note that the `Z` time zone marker means UTC (Coordinated Universal
+Time). Please use UTC timestamps.
+
+#### Date and time as web page anchor
+
+Any timestamp written in one of the above formats is a valid HTTP URL
+fragment (`#2019`) and HTML anchor (`<h2 id="2019">`). This way, the
+address can link to a web page explaining several versions of the
+format and the date can make the link jump directly to the right
+section of the page. These URLs look so clean that we recommend them
+even for formats with only one version.
+
+#### Example URIs
+
+----
+example.com/our-format#2020
+example.com/our-format#2020-03
+example.com/our-format#2020-03-31
+example.com/our-format#2020-03-05T23:09Z
+example.com/our-format#2020-12-31T02:56:01Z
+
+my.example.name/formats/froz#2020
+
+github.com/example/format#2020-01
+----
+
+### UUID signature
+
+UUID (also known as GUID) is a standard format for 128-bit (16-byte)
+partially random numbers. It is designed to minimize the chance of
+collision even when numbers are generated by mutually unknown parties.
+
+The UUID may be generated according to any version (1, 2, 3, 4, or 5)
+of the standard format. It is written as raw binary bytes with no
+delimiters. The byte order depends on which version of UUID is used.
+Some versions are big-endian; others mix big-endian and little-endian
+subfields.
+
+UUID signatures are well suited for two situations:
+
+* Space-constrained environments (e.g. microcontrollers or individual
+  network packets).
+
+* Applications where the identity of the format or its designer should
+  remain private.
+
+### Padding for alignment
+
+Individual formats may specify that a given number of zero bytes be
+appended to a Unisig. This will ensure that the data after the
+signature is aligned at an _n_-byte boundary.
+
+A UUID Unisig always has a constant length of 24 bytes. That means the
+data after the signature is automatically 2-byte, 4-byte, and 8-byte
+aligned. Eight null bytes can be appended to make it 16-byte aligned.
+
+### Caveat
+
+Old Corel Draw color palette files are known to share the two initial
+bytes DC DC. Their file name extension is `.cpl`.
+
+## Implementation
+
+### Specific
+
+If you are only looking to read or write one particular signature, it
+is simplest to skip all generic Unisig handling and simply hardcode
+the raw bytes of that signature, including the Unisig magic bytes, as
+one byte vector in your program. When reading data, you can read that
+many bytes and then use ordinary byte string comparison to check that
+the signature you read was the one you expected. Example in C:
+
+----
+// Unisig: example.com/format#2020
+static const unsigned char sig[31] = {
+    0xdc, 0xdc, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x17, 0x65, 0x78, 0x61,
+    0x6d, 0x70, 0x6c, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x66, 0x6f,
+    0x72, 0x6d, 0x61, 0x74, 0x23, 0x32, 0x30, 0x32, 0x30,
+};
+
+int read_valid_sig(FILE *input)
+{
+    unsigned char buf[sizeof(sig)];
+    if (fread(buf, 1, sizeof(sig), input) != sizeof(sig))
+        return 0;
+    return memcmp(buf, sig, sizeof(sig)) == 0;
+}
+----
+
+### Generic
+
+To read any Unisig, first read 8 bytes to get the magic and the length
+byte. Then check the length byte and read that many more bytes.
+Example in C:
+
+----
+static char *read_unisig(FILE *input, int *out_is_uuid)
+{
+    static const unsigned char magic[7]
+        = { 0xdc, 0xdc, 0x0d, 0x0a, 0x1a, 0x0a, 0x00 };
+    unsigned char head[sizeof(magic) + 1];
+    char *sig;
+    size_t len;
+    int is_uuid;
+
+    if (fread(head, 1, sizeof(head), input) != sizeof(head))
+        return 0;
+    if (memcmp(head, magic, sizeof(magic)))
+        return 0;
+    len = head[sizeof(magic)];
+    *out_is_uuid = is_uuid = (len == 0);
+    if (is_uuid)
+        len = 16;
+    sig = calloc(len + 1, 1);
+    if (sig == NULL)
+        goto fail; // Out of memory
+    if (fread(sig, 1, len, input) != len)
+        goto fail; // Read error or truncated file
+    if (!is_uuid) {
+        if (memchr(sig, '\0', len))
+            goto fail; // Sig contains null byte, not usable as a C string.
+    }
+    return sig;
+fail:
+    free(sig);
+    return NULL;
+}
+----
+
+### Patterns for the unix `file` utility
+
+The following magic patterns let the file(1) command detect Unisig
+files.
+
+For versions of file(1) supporting `pstring` and `guid` tests:
+
+----
+0      string    \xDC\xDC\x0D\x0A\x1A\x0A\x00  Unisig:
+>7     ubyte     =0                            UUID
+>>8    guid      x                             %s
+>7     ubyte     >0                            URI
+>>7    pstring   x                             %s
+----
+
+For versions of file(1) supporting `pstring` but no `guid` tests:
+
+----
+0      string    \xDC\xDC\x0D\x0A\x1A\x0A\x00  Unisig:
+>7     ubyte     =0                            UUID
+>>8    ubelong   x                             %08x
+>>12   ubeshort  x                             \b-%04x
+>>14   ubeshort  x                             \b-%04x
+>>16   ubeshort  x                             \b-%04x
+>>18   ubelong   x                             \b-%08x
+>>22   ubeshort  x                             \b%04x
+>7     ubyte     >0                            URI
+>>7    pstring   x                             %s
+----
+
+## References
+
+### Technical references
+
+http://www.libpng.org/pub/png/spec/1.2/PNG-Rationale.html#R.PNG-file-signature[Portable
+Network Graphics (PNG) Specification, version 1.2.] Section 12.12. PNG
+file signature.
+
+https://tools.ietf.org/html/rfc3339[RFC 3339: Date and Time on the
+Internet: Timestamps]
+
+### File format signature lists
+
+https://en.wikipedia.org/wiki/List_of_file_signatures[List of file
+signatures (Wikipedia)]
+
+https://filesignatures.net/[File Signature Database
+(FileSignatures.net)]
+
+https://www.garykessler.net/library/file_sigs.html[GCK's file
+signatures table]. Collected by Gary Kessler.
+
+### File format identification tools
+
+https://www.darwinsys.com/file/[The Unix file(1) utility]. There are
+several different versions of file(1). This is the canonical version.
+It was originally written by Ian F. Darwin and is now maintained by
+Christos Zoulas.
+
+https://mark0.net/soft-trid-e.html[TrID] by Marco Pontello. Includes a
+web-based identification tool.
+
+https://www.nationalarchives.gov.uk/PRONOM/[PRONOM] from The National
+Archives of the United Kingdom. Includes a web-based identification
+tool.
+
+### Unix manual pages
+
+Unix manual pages for the magic number database used by the `file(1)`
+utility:
+
+https://man.dragonflybsd.org/?command=magic&section=5[DragonFly BSD magic(5) manual page]
+
+https://www.freebsd.org/cgi/man.cgi?query=magic&sektion=5[FreeBSD magic(5) manual page]
+
+https://linux.die.net/man/5/magic[GNU/Linux magic(5) manual page]
+
+https://netbsd.gw.com/cgi-bin/man-cgi?magic+5+NetBSD-current[NetBSD magic(5) manual page]
+
+https://man.openbsd.org/magic.5[OpenBSD magic(5) manual page]
+
+https://docs.oracle.com/cd/E19253-01/816-5174/6mbb98ug3/index.html[Solaris 10 magic(4) manual page]
