@@ -98,7 +98,7 @@ To answer these problems, we need:
 
 * *Extensibility.* It is prudent to assume that any new format lasts
   for decades. A signature scheme should be extensible to cope with
-  unforeseen requirements.
+  unforeseen requirements so the same scheme can be used indefinitely.
 
 * *Dating.* Signatures should state the when the format was published.
   This is good for collision resistance, and is useful information for
@@ -108,7 +108,7 @@ To answer these problems, we need:
   incorrect file transfers are more likely. A well-chosen magic number
   can double as an error detector.
 
-Unisig solves all of these problems:
+Unisig solves the problems as follows:
 
 * The signature contains either a UUID (universally unique identifier)
   or a URI (Uniform Resource Identifier). UUIDs have been designed
