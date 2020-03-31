@@ -18,14 +18,14 @@ network protocols. It offers the following benefits:
 file transfer errors.
 
 * Uses a human-readable and future-proof naming scheme based on URIs,
-and an alternative covert naming scheme based on UUIDs.
+and an alternative naming scheme based on UUIDs.
 
 * Lets file format identification tools show the name of a format with
 no extra work on the format designer's part.
 
 ## Motivation
 
-Each binary format normally has its own _signature_, also known as
+Each binary format normally has its own _signature_, also known as a
 _magic number_. The signature is a constant byte string meant to
 identify the format and distinguish it from other formats. It is
 normally situated right at the start of data so the format can be
@@ -185,7 +185,7 @@ data. The bytes have been chosen for the following purposes.
      format is not Unicode text.
 
   ** Neither byte represents an ASCII character, further reducing the
-     likelyhood that the format is misread as text.
+     likelihood that the format is misread as text.
 
   ** Both bytes have the most significant bit set. Some old file
      transfer methods are not _8-bit clean_ -- they only keep the
@@ -210,13 +210,15 @@ data. The bytes have been chosen for the following purposes.
 
 * 1A
 
-  ** This byte represents the ASCII character Control-Z (`^Z`). It
-     stops file display under MS-DOS.
+  ** This byte represents the version number of the Unisig standard in use.
+     It is the ASCII character Control-Z (`^Z`), and was
+     chosen for historical reasons: it stops file display under MS-DOS.
 
   ** Unlike some ASCII control characters, `^Z` is not used to encode
      whitespace (tab, newline, etc.). Non-whitespace control
      characters serve no purpose in text files. Hence this byte serves
-     as another hint that the format is binary.
+     as another hint that the format is binary.  Future versions should
+     make use of other similar control characters.
 
   ** This byte is unrelated to newline encoding, so it also acts as a
      separator between the previous CR LF and the upcoming LF newline.
@@ -249,32 +251,25 @@ If the value is zero, a 16-byte UUID signature follows.
 
 ### URI signature
 
-#### Absolute format
+A URI signature may not contain more than 255 bytes.
+All bytes must be ASCII graphic characters. If the
+domain contains non-ASCII characters, they must be encoded
+using Punycode.
 
-A URI signature is an arbitrary byte string of length 1..255. Two
-signatures are equal if they are the same length and all byte values
+Two signatures are equal if they are the same length and all byte values
 are equal. In other words, equality comparison is based on the raw
 bytes, not their text interpretation.
 
-#### Recommended format
-
-In practice all bytes should be ASCII graphic characters. In the
-unlikely event that non-ASCII characters are needed, Unicode should be
-used with UTF-8 encoding and Normalization Form C (NFC).
-
-The signature should be a valid URI (Uniform Resource Identifier).
-
-The URI should point at an existing resource at the time the format is
-published. Ideally the resource continues to exist for decades to
-come.
-
-The ideal URI is the address of a web page. Then people who encounter
-the signature can open the page in their web browser to find
+The signature must be a valid URI (Uniform Resource Identifier).  It should
+point at an existing resource, ideally a web page, at the time the format is
+published. Hopefully the resource will continue to exist for decades to
+come. Then people who encounter
+the signature can open the page in a web browser to find
 information about the format.
 
-Web addresses should omit the URI scheme (`http://` or `https://`). If
-a signature has no URI scheme, readers should currently assume the
-default scheme is `http`. Later versions of this specification may be
+If the URI scheme is `http://` it must be omitted.  This saves
+space and does not interfere with usability.
+Later versions of this specification may be
 amended to recommend a new default in case another protocol replaces
 HTTP as the most popular transport for web pages. Our intention is
 that the default scheme remain a natural choice for linking to web
@@ -282,32 +277,19 @@ pages. Omitting the URI scheme makes web addresses shorter, easier to
 read, and permits a smooth upgrade path as the web switches to new
 protocols in the coming years and decades.
 
-#### Date and time format
+#### Dates
 
-*We strongly, strongly recommend that the URI contain a date.* At
-least the year; possibly the month and day-of-month as well. Even a
-time-of-day can be included if need be. Internet domain names can
-change owners, so a domain name alone does not establish ownership for
-all time. A domain name and a date make a much more authoritative
-combination.
+The URI must contain a fragment in the format yyyy-mm-dd representing a
+date the version of the format was published.
+On that date the domain name must have been controlled by
+the person or organization defining the format. Domains do change hands
+(but not more than once a day), so a date is required for uniqueness.
+It is very unlikely that
+multiple format versions will be published in a single day, so there
+is no provision for time of day.
 
-Please use one of the following formats:
-
-* `yyyy` (year only)
-* `yyyy-mm` (year-month)
-* `yyyy-mm-dd` (year-month-day)
-* `yyyy-mm-ddTHH:MMZ` (year-month-day `T` hour:minute `Z`)
-* `yyyy-mm-ddTHH:MM:SSZ` (year-month-day `T` hour:minute:second `Z`)
-
-These are based on the internet standard date format RFC 3339, which
-in turn is based on the international standard date format ISO 8601.
-Note that the `Z` time zone marker means UTC (Coordinated Universal
-Time). Please use UTC timestamps.
-
-#### Date and time as web page anchor
-
-Any timestamp written in one of the above formats is a valid HTTP URL
-fragment (`#2019`) and HTML anchor (`<h2 id="2019">`). This way, the
+A date in the above format is a valid HTTP URL
+fragment (`#2019-04-02`) and HTML anchor (`<h2 id="2019-04-02">`). This way, the
 address can link to a web page explaining several versions of the
 format and the date can make the link jump directly to the right
 section of the page. These URLs look so clean that we recommend them
@@ -316,15 +298,11 @@ even for formats with only one version.
 #### Example URIs
 
 ----
-example.com/our-format#2020
-example.com/our-format#2020-03
+example.com/our-format#2020-03-05
 example.com/our-format#2020-03-31
-example.com/our-format#2020-03-05T23:09Z
-example.com/our-format#2020-12-31T02:56:01Z
-
-my.example.name/formats/froz#2020
-
-github.com/example/format#2020-01
+example.com/our-format#2020-12-31
+my.example.name/formats/froz#2020-02-29
+github.com/user/format#2020-01-01
 ----
 
 ### UUID signature
@@ -335,11 +313,14 @@ collision even when numbers are generated by mutually unknown parties.
 UUID stands for _universally unique identifier_, and GUID stands for
 _globally unique identifier_.
 
-The UUID may be generated according to any version (1, 2, 3, 4, or 5)
+The UUID must be in version 4 or 5
 of the standard format. It is written as raw binary bytes with no
 delimiters. The byte order depends on which version of UUID is used.
 Some versions are big-endian; others mix big-endian and little-endian
 subfields.
+
+(Versions 1 and 2 have privacy concerns, as they leak MAC addresses.
+Version 3 relies on the broken MD5 hash function.)
 
 UUID signatures are well suited for two situations:
 
@@ -396,7 +377,8 @@ int read_valid_sig(FILE *input)
 ### Generic
 
 To read any Unisig, first read 8 bytes to get the magic and the length
-byte. Then check the length byte and read that many more bytes.
+byte. Then, if the magic is correct,
+check the length byte and read that many more bytes.
 Example in C:
 
 ----
@@ -484,6 +466,8 @@ https://filesignatures.net/[File Signature Database
 
 https://www.garykessler.net/library/file_sigs.html[GCK's file
 signatures table]. Collected by Gary Kessler.
+
+TODO: Punycode (find reference)
 
 ### File format identification tools
 
