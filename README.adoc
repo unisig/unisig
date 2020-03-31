@@ -351,13 +351,14 @@ UUID signatures are well suited for two situations:
 
 ### Padding for alignment
 
-Individual formats may specify that a given number of zero bytes be
+Individual formats may specify that a given number of null bytes be
 appended to a Unisig. This will ensure that the data after the
 signature is aligned at an _n_-byte boundary.
 
 A UUID Unisig always has a constant length of 24 bytes. That means the
-data after the signature is automatically 2-byte, 4-byte, and 8-byte
-aligned. Eight null bytes can be appended to make it 16-byte aligned.
+data after the signature is automatically 2-byte, 4-byte, 8-byte, and
+12-byte aligned. Eight null bytes can be appended to make it 16-byte
+aligned.
 
 ### Caveat
 
