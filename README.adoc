@@ -12,11 +12,16 @@ toc::[]
 ## Overview
 
 Unisig is a uniform signature scheme for binary file formats and
-network protocols. It clearly differentiates binary data from text and
-detects typical file transfer errors. It offers a human-readable and
-future-proof naming scheme based on URIs, and an alternative covert
-naming scheme based on UUIDs. It lets file format identification tools
-show the name of your format with no extra work on your part.
+network protocols. It offers the following benefits:
+
+* Clearly differentiates binary data from text and detects typical
+file transfer errors.
+
+* Uses a human-readable and future-proof naming scheme based on URIs,
+and an alternative covert naming scheme based on UUIDs.
+
+* Lets file format identification tools show the name of a format with
+no extra work on the format designer's part.
 
 ## Motivation
 
@@ -24,7 +29,7 @@ Each binary format normally has its own _signature_, also known as
 _magic number_. The signature is a constant byte string meant to
 identify the format and distinguish it from other formats. It is
 normally situated right at the start of data so the format can be
-identified as early as possible. The following table explains the
+identified as early as possible. The following table dissects the
 signatures of some popular formats.
 
 [options=header]
@@ -118,9 +123,10 @@ Unisig solves all of these problems:
   schemes. URI schemes are well-known in the internet community and a
   registration procedure is already in place.
 
-* For error detection, we happily stole the thoughtful magic number of
-  the PNG image file format, modifying it so suit. In particular, we
-  had the benefit of hindsight to made it more Unicode-resistant.
+* For error detection, we gratefully stole the thoughtful magic number
+  of the PNG image file format and modified it to suit. In particular,
+  we had the benefit of hindsight to make it more resistant against
+  misidentification as Unicode text.
 
 ## Specification
 
@@ -207,13 +213,13 @@ data. The bytes have been chosen for the following purposes.
   ** This byte represents the ASCII character Control-Z (`^Z`). It
      stops file display under MS-DOS.
 
-  ** `^Z` is an ASCII control character that is not used to encode
+  ** Unlike some ASCII control characters, `^Z` is not used to encode
      whitespace (tab, newline, etc.). Non-whitespace control
-     characters serve no purpose in ASCII text files, so this byte
-     serves as another signal that the format is binary.
+     characters serve no purpose in text files. Hence this byte serves
+     as another hint that the format is binary.
 
   ** This byte is unrelated to newline encoding, so it also acts as a
-     separator between the CR LF and LF newlines.
+     separator between the previous CR LF and the upcoming LF newline.
 
 * 0A
 
@@ -227,9 +233,9 @@ data. The bytes have been chosen for the following purposes.
   ** This is a null byte (all bits zero). It detects bad transfers
      that drop or alter null bytes.
 
-Since the magic bytes can be broken down into asymmetrical 2-byte and
-4-byte pairs, inadvertent 16-bit and 32-bit byte-order swaps are also
-detected.
+When the magic bytes are broken down into 2-byte or 4-byte words, some
+of those words are asymmetrical. Hence inadvertent 16-bit and 32-bit
+byte-order swaps are also detected.
 
 ### Length byte
 
@@ -252,12 +258,15 @@ bytes, not their text interpretation.
 
 #### Recommended format
 
-In practice all bytes should be ASCII graphic characters.
+In practice all bytes should be ASCII graphic characters. In the
+unlikely event that non-ASCII characters are needed, Unicode should be
+used with UTF-8 encoding and Normalization Form C (NFC).
 
 The signature should be a valid URI (Uniform Resource Identifier).
 
 The URI should point at an existing resource at the time the format is
-published. Ideally it stays valid for decades to come.
+published. Ideally the resource continues to exist for decades to
+come.
 
 The ideal URI is the address of a web page. Then people who encounter
 the signature can open the page in their web browser to find
@@ -265,7 +274,7 @@ information about the format.
 
 Web addresses should omit the URI scheme (`http://` or `https://`). If
 a signature has no URI scheme, readers should currently assume the
-default scheme `http`. Later versions of this specification may be
+default scheme is `http`. Later versions of this specification may be
 amended to recommend a new default in case another protocol replaces
 HTTP as the most popular transport for web pages. Our intention is
 that the default scheme remain a natural choice for linking to web
@@ -282,7 +291,7 @@ change owners, so a domain name alone does not establish ownership for
 all time. A domain name and a date make a much more authoritative
 combination.
 
-Please use one of the following date and time formats:
+Please use one of the following formats:
 
 * `yyyy` (year only)
 * `yyyy-mm` (year-month)
@@ -323,6 +332,8 @@ github.com/example/format#2020-01
 UUID (also known as GUID) is a standard format for 128-bit (16-byte)
 partially random numbers. It is designed to minimize the chance of
 collision even when numbers are generated by mutually unknown parties.
+UUID stands for _universally unique identifier_, and GUID stands for
+_globally unique identifier_.
 
 The UUID may be generated according to any version (1, 2, 3, 4, or 5)
 of the standard format. It is written as raw binary bytes with no
@@ -436,7 +447,7 @@ For versions of file(1) supporting `pstring` and `guid` tests:
 >>7    pstring   x                             %s
 ----
 
-For versions of file(1) supporting `pstring` but no `guid` tests:
+For versions of file(1) supporting `pstring` but not `guid` tests:
 
 ----
 0      string    \xDC\xDC\x0D\x0A\x1A\x0A\x00  Unisig:
@@ -453,7 +464,7 @@ For versions of file(1) supporting `pstring` but no `guid` tests:
 
 ## References
 
-### Technical references
+### Specifications
 
 http://www.libpng.org/pub/png/spec/1.2/PNG-Rationale.html#R.PNG-file-signature[Portable
 Network Graphics (PNG) Specification, version 1.2.] Section 12.12. PNG
