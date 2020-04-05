@@ -279,28 +279,30 @@ protocols in the coming years and decades.
 
 #### Dates
 
-The URI must contain a fragment in the format yyyy-mm-dd representing a
-date the version of the format was published.
-On that date the domain name must have been controlled by
-the person or organization defining the format. Domains do change hands
-(but not more than once a day), so a date is required for uniqueness.
-It is very unlikely that
-multiple format versions will be published in a single day, so there
-is no provision for time of day.
+The URI must contain a date, and optionally the time of day, in RFC
+3339 format. In this format the date is written yyyy-mm-dd. If the
+time of day is included, it must be separated from the date with the
+capital letter `T` and should be in UTC with `Z` for a time zone
+suffix.
 
-A date in the above format is a valid HTTP URL
-fragment (`#2019-04-02`) and HTML anchor (`<h2 id="2019-04-02">`). This way, the
+If the URI contains a domain name, that domain must be under control
+of the person or organization defining the format on the date
+mentioned in the URI. Domains do change hands (but not more than once
+a day), so a date is required for uniqueness.
+
+A date in the above format is a valid HTTP URL fragment
+(`#2019-04-02`) and HTML anchor (`<h2 id="2019-04-02">`). If the URI
+is a web URL, the date must be in the fragment part. This way, the
 address can link to a web page explaining several versions of the
 format and the date can make the link jump directly to the right
-section of the page. These URLs look so clean that we recommend them
-even for formats with only one version.
+section of the page.
 
 #### Example URIs
 
 ----
 example.com/our-format#2020-03-05
-example.com/our-format#2020-03-31
-example.com/our-format#2020-12-31
+example.com/our-format#2020-03-31T23:09Z
+example.com/our-format#2020-12-31T02:56:01Z
 my.example.name/formats/froz#2020-02-29
 github.com/user/format#2020-01-01
 ----
