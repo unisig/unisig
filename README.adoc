@@ -351,11 +351,12 @@ bytes DC DC. Their file name extension is `.cpl`.
 ### Specific
 
 If you are only looking to read or write one particular signature, it
-is simplest to skip all generic Unisig handling and simply hardcode
-the raw bytes of that signature, including the Unisig magic bytes, as
-one byte vector in your program. When reading data, you can read that
-many bytes and then use ordinary byte string comparison to check that
-the signature you read was the one you expected. Example in C:
+is simplest to skip all generic Unisig handling. It is enough to
+hardcode the raw bytes of the signature, including the Unisig magic
+bytes, as one byte vector in your program. When reading data, you can
+read that many bytes and then use ordinary byte string comparison to
+check that the signature you read was the one you expected. Example in
+C:
 
 ----
 // Unisig: example.com/format#2020
